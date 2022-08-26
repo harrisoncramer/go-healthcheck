@@ -11,8 +11,9 @@ import (
 )
 
 func check(e error) {
+	colorRed := "\033[31m"
 	if e != nil {
-		log.Fatal(e)
+		log.Fatal(string(colorRed), e)
 	}
 }
 
@@ -21,7 +22,8 @@ type Config struct {
 }
 
 var (
-	ErrorScheduleNotSet = "Configuration file error: Schedule must be set."
+	ErrorConfigNotProvided = "No configuration file provided."
+	ErrorScheduleNotSet    = "Configuration file error: Schedule must be set."
 )
 
 func validateConfig(config Config) error {
@@ -36,6 +38,10 @@ func main() {
 
 	log.Println("Starting...")
 	config := Config{}
+
+	if len(os.Args) <= 1 {
+		check(errors.New(ErrorConfigNotProvided))
+	}
 
 	settingsPath := os.Args[1]
 
