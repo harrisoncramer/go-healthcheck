@@ -19,18 +19,26 @@ func check(e error) {
 
 type Config struct {
 	Schedule int
+	Base_url string
+}
+
+func (o *Config) Init() {
+	if o.Base_url == "" {
+		log.Println("config.base_url not set, defaulting to 'http://localhost'")
+		o.Base_url = "http://localhost"
+	}
 }
 
 var (
-	ErrorConfigNotProvided = "No configuration file provided."
-	ErrorScheduleNotSet    = "Configuration file error: Schedule must be set."
+	ErrorConfigNotProvided = "config error: Configuration file not provided"
+	ErrorScheduleNotSet    = "config error: config.schedule not set"
 )
 
 func validateConfig(config Config) error {
-	log.Println(config.Schedule)
 	if config.Schedule == 0 {
 		return errors.New(ErrorScheduleNotSet)
 	}
+
 	return nil
 }
 
@@ -50,6 +58,9 @@ func main() {
 
 	err = yaml.Unmarshal(data, &config)
 	check(err)
+
+	/* Initialize default values if YAML is unset */
+	config.Init()
 
 	err = validateConfig(config)
 	check(err)
