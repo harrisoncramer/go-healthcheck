@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"log"
 	"os"
 	"time"
@@ -10,9 +11,29 @@ import (
 	yaml "github.com/go-yaml/yaml"
 )
 
+const usage = `
+****************************************************************
+                        go-healthcheck
+****************************************************************
+
+ SYNOPSIS
+    go-healthcheck -f config_file.yml ...
+  DESCRIPTION
+     This is a script template
+     to start any good shell script.
+  OPTIONS
+     -f [file],                    Set config file. This file will configure 
+                                   go-healthcheck, by setting a default base url, 
+                                   schedule, and list of checks to perform.
+     -v, --version                 Print script information
+  EXAMPLES
+     go-healthcheck -f production-check.yml
+`
+
 func check(e error) {
 	colorRed := "\033[31m"
 	if e != nil {
+		log.Print(usage)
 		log.Fatal(string(colorRed), e)
 	}
 }
@@ -43,17 +64,18 @@ func validateConfig(config Config) error {
 }
 
 func main() {
-
 	log.Println("Starting...")
-	config := Config{}
 
-	if len(os.Args) <= 1 {
+	var config_file = flag.String("f", "", "The configuration file for go-healthcheck")
+	flag.Parse()
+
+	if *config_file == "" {
 		check(errors.New(ErrorConfigNotProvided))
 	}
 
-	settingsPath := os.Args[1]
+	config := Config{}
 
-	data, err := os.ReadFile(settingsPath)
+	data, err := os.ReadFile(*config_file)
 	check(err)
 
 	err = yaml.Unmarshal(data, &config)
