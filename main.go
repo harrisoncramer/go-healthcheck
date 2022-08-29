@@ -4,7 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -43,6 +45,7 @@ func check(e error) {
 }
 
 type Job struct {
+	Name     string
 	Endpoint string
 }
 
@@ -53,6 +56,7 @@ type Config struct {
 	Jobs     []Job
 }
 
+/* Sets up some default values if they aren't set in the config.yaml */
 func (o *Config) Init() {
 	if o.Base_url == "" {
 		log.Println(string(colorYellow), "config warning: config.base_url not set, defaulting to 'http://localhost'")
@@ -62,6 +66,12 @@ func (o *Config) Init() {
 	if o.Port == 0 {
 		log.Println(string(colorYellow), "config warning: config.port not set, defaulting to 80")
 		o.Port = 80
+	}
+
+	for i, job := range o.Jobs {
+		if job.Name == "" {
+			o.Jobs[i].Name = "job_" + fmt.Sprintf("%v", i)
+		}
 	}
 }
 
@@ -73,6 +83,7 @@ var (
 	}
 )
 
+/* Validates that configuration formed via the configuratione file and defaults in the initializer function, if appropriate */
 func validateConfig(config Config) error {
 	if config.Schedule == 0 {
 		return errors.New(ErrorScheduleNotSet)
@@ -105,15 +116,25 @@ func main() {
 	err = yaml.Unmarshal(data, &config)
 	check(err)
 
-	/* Initialize default values if YAML is unset */
 	config.Init()
 
 	err = validateConfig(config)
 	check(err)
 
+	baseWithPort := config.Base_url + ":" + fmt.Sprintf("%v", config.Port)
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(config.Schedule).Milliseconds().Do(func() {
-		log.Println(string(colorWhite), "Running job...")
+		for _, job := range config.Jobs {
+			log.Println(string(colorWhite), fmt.Sprintf("Running: %s", job.Name))
+
+			resp, err := http.Get(baseWithPort + "/" + job.Endpoint)
+			check(err)
+
+			body, err := ioutil.ReadAll(resp.Body)
+			check(err)
+
+			log.Println(string(body))
+		}
 	})
 
 	s.StartBlocking()

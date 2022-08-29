@@ -1,0 +1,7 @@
+schedule: 1000
+base_url: "http://127.0.0.1"
+port: 3000
+jobs:
+  - name: 'fetch-posts'
+    endpoint: 'posts'
+  - endpoint: 'dummy'
