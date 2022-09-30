@@ -49,6 +49,16 @@ type Job struct {
 	Endpoint string
 }
 
+type Failure struct {
+	Job        Job
+	StatusCode int
+	Body       string
+}
+
+type Success struct {
+	Job Job
+}
+
 type Config struct {
 	Schedule int
 	Base_url string
@@ -124,6 +134,8 @@ func main() {
 	baseWithPort := config.Base_url + ":" + fmt.Sprintf("%v", config.Port)
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(config.Schedule).Milliseconds().Do(func() {
+		failures := []Failure{}
+		successes := []Success{}
 		for _, job := range config.Jobs {
 			log.Println(string(colorWhite), fmt.Sprintf("Running: %s", job.Name))
 
@@ -133,7 +145,25 @@ func main() {
 			body, err := ioutil.ReadAll(resp.Body)
 			check(err)
 
-			log.Println(string(body))
+			if resp.StatusCode != 200 {
+				failures = append(failures, Failure{
+					Job:        job,
+					StatusCode: resp.StatusCode,
+					Body:       string(body),
+				})
+			} else {
+				successes = append(successes, Success{
+					Job: job,
+				})
+			}
+		}
+
+		log.Print("\n\n--RESULTS--")
+		log.Println(fmt.Sprintf("%d/%d Succeeeded", len(successes), len(config.Jobs)))
+		log.Println(fmt.Sprintf("%d/%d Failed", len(failures), len(config.Jobs)))
+
+		for _, failure := range failures {
+			log.Print(fmt.Sprintf("\tEndpoint failed /%s, expected 200 got %d", failure.Job.Endpoint, failure.StatusCode))
 		}
 	})
 
