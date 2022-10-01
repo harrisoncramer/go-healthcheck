@@ -1,17 +1,19 @@
 schedule: 7000
 base_url: "http://127.0.0.1"
-port: 3010
+port: 3000
 verbose: true
 jobs:
   - name: 'string-example'
-    description: "The description is optional and will only be printed with verbose logging"
+    description: "Checking a string response"
     endpoint: '/example/string'
     body: 'You can check string responses'
     status: 200
   - name: 'json-example'
+    description: "Checking using a path to a JSON file to check for the data"
     endpoint: '/example/json'
     body: './responses/posts.json'
     read_file: true
   - name: '404-example'
+    description: "If you pass a 404 status, it won't check the body"
     endpoint: '/example/404'
     status: 404

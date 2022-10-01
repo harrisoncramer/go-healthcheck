@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -111,7 +112,7 @@ func (o *Config) Init() {
 
 	for i, job := range o.Jobs {
 		if job.Name == "" {
-			o.Jobs[i].Name = "job_" + fmt.Sprintf("%v", i)
+			job.Name = "job_" + fmt.Sprintf("%d", i)
 		}
 
 		if job.Read_file {
@@ -123,8 +124,9 @@ func (o *Config) Init() {
 			check(err)
 
 			job.addJson(jsonBody)
-
 		}
+
+		o.Jobs[i] = job
 	}
 }
 
@@ -173,7 +175,12 @@ func checkStatus(job Job, resp *http.Response) bool {
 }
 
 func checkBody(job Job, body []byte) bool {
-	if string(body) == "" || job.Status == 404 {
+	if len(job.Json) > 0 {
+		var responseJson Json
+		json.Unmarshal(body, &responseJson)
+		return reflect.DeepEqual(responseJson, job.Json)
+
+	} else if string(body) == "" || job.Status == 404 {
 		return true
 	}
 
