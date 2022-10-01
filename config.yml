@@ -11,6 +11,7 @@ jobs:
   - name: 'json-example'
     endpoint: '/example/json'
     body: './responses/posts.json'
+    read_file: true
   - name: '404-example'
     endpoint: '/example/404'
     status: 404

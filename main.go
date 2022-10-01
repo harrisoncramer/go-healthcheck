@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -44,12 +45,20 @@ func check(e error) {
 	}
 }
 
+type Json map[string]interface{}
+
 type Job struct {
 	Name        string
 	Description string
 	Endpoint    string
 	Status      int
 	Body        string
+	Read_file   bool
+	Json        Json // Added if Read_file is true
+}
+
+func (job *Job) addJson(j Json) {
+	job.Json = j
 }
 
 type Failure struct {
@@ -104,6 +113,18 @@ func (o *Config) Init() {
 		if job.Name == "" {
 			o.Jobs[i].Name = "job_" + fmt.Sprintf("%v", i)
 		}
+
+		if job.Read_file {
+			data, err := os.ReadFile(job.Body)
+			check(err)
+
+			var jsonBody Json
+			err = json.Unmarshal(data, &jsonBody)
+			check(err)
+
+			job.addJson(jsonBody)
+
+		}
 	}
 }
 
@@ -155,6 +176,7 @@ func checkBody(job Job, body []byte) bool {
 	if string(body) == "" || job.Status == 404 {
 		return true
 	}
+
 	return job.Body == string(body)
 }
 
@@ -217,7 +239,11 @@ func main() {
 			log.Print(failure.Message)
 			if config.Verbose {
 				log.Println(fmt.Sprintf("%s: Expected body was:", failure.Job.Name))
-				fmt.Println(string(failure.Job.Body))
+				if failure.Job.Read_file {
+					log.Println(&failure.Job.Json)
+				} else {
+					fmt.Println(string(failure.Job.Body))
+				}
 				log.Println(fmt.Sprintf("%s: Received body was:", failure.Job.Name))
 				fmt.Println(string(failure.Body))
 			}
