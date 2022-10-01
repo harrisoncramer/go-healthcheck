@@ -45,10 +45,11 @@ func check(e error) {
 }
 
 type Job struct {
-	Name     string
-	Endpoint string
-	Status   int
-	Body     string
+	Name        string
+	Description string
+	Endpoint    string
+	Status      int
+	Body        string
 }
 
 type Failure struct {
@@ -188,6 +189,9 @@ func main() {
 
 		for _, job := range config.Jobs {
 			log.Println(string(colorWhite), fmt.Sprintf("Running: %s", job.Name))
+			if config.Verbose && job.Description != "" {
+				log.Println(job.Description)
+			}
 
 			resp, err := http.Get(baseWithPort + job.Endpoint)
 			check(err)
@@ -200,10 +204,6 @@ func main() {
 				failures.addFailure(job, resp.StatusCode, body, fmt.Sprintf("%s: Expected %d received %d", job.Name, job.Status, resp.StatusCode))
 			} else if !checkBody(job, body) {
 				failures.addFailure(job, resp.StatusCode, body, fmt.Sprintf("%s: Response body did not match", job.Name))
-				if config.Verbose {
-					log.Println("Received body was:")
-					fmt.Printf(string(body))
-				}
 			} else {
 				successes.addSuccess(job)
 			}
@@ -215,6 +215,12 @@ func main() {
 
 		for _, failure := range failures.failures {
 			log.Print(failure.Message)
+			if config.Verbose {
+				log.Println(fmt.Sprintf("%s: Expected body was:", failure.Job.Name))
+				fmt.Println(string(failure.Job.Body))
+				log.Println(fmt.Sprintf("%s: Received body was:", failure.Job.Name))
+				fmt.Println(string(failure.Body))
+			}
 		}
 	})
 

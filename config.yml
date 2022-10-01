@@ -4,6 +4,7 @@ port: 3010
 verbose: true
 jobs:
   - name: 'string-example'
+    description: "The description is optional and will only be printed with verbose logging"
     endpoint: '/example/string'
     body: 'You can check string responses'
     status: 200
