@@ -1,7 +1,15 @@
-schedule: 1000
+schedule: 7000
 base_url: "http://127.0.0.1"
-port: 3000
+port: 3010
+verbose: true
 jobs:
-  - name: 'fetch-posts'
-    endpoint: 'posts'
-  - endpoint: 'dummy'
+  - name: 'string-example'
+    endpoint: '/example/string'
+    body: 'You can check string responses'
+    status: 200
+  - name: 'json-example'
+    endpoint: '/example/json'
+    body: './responses/posts.json'
+  - name: '404-example'
+    endpoint: '/example/404'
+    status: 404

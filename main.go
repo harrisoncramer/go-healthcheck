@@ -47,16 +47,36 @@ func check(e error) {
 type Job struct {
 	Name     string
 	Endpoint string
+	Status   int
+	Body     string
 }
 
 type Failure struct {
 	Job        Job
 	StatusCode int
-	Body       string
+	Body       []byte
+	Message    string
 }
 
-type Success struct {
-	Job Job
+type Failures struct {
+	failures []Failure
+}
+
+func (parent *Failures) addFailure(job Job, status int, body []byte, message string) {
+	parent.failures = append(parent.failures, Failure{
+		Job:        job,
+		StatusCode: status,
+		Body:       body,
+		Message:    message,
+	})
+}
+
+type Successes struct {
+	successes []Job
+}
+
+func (parent *Successes) addSuccess(job Job) {
+	parent.successes = append(parent.successes, job)
 }
 
 type Config struct {
@@ -64,6 +84,7 @@ type Config struct {
 	Base_url string
 	Port     int
 	Jobs     []Job
+	Verbose  bool
 }
 
 /* Sets up some default values if they aren't set in the config.yaml */
@@ -88,8 +109,11 @@ func (o *Config) Init() {
 var (
 	ErrorConfigNotProvided = "config error: Configuration file not provided"
 	ErrorScheduleNotSet    = "config error: config.schedule not set"
-	ErrorJobEndpointNotSet = func(i int) string {
-		return "config error: config.jobs[" + fmt.Sprintf("%v", i) + "] endpoint not set"
+	ErrorJobEndpointNotSet = func(name string) string {
+		return "config error: config.jobs[" + fmt.Sprintf("%s", name) + "] endpoint not set"
+	}
+	ErrorEmptyBody = func(name string) string {
+		return fmt.Sprintf("config error: No expected body provided for %s", name)
 	}
 )
 
@@ -100,12 +124,37 @@ func validateConfig(config Config) error {
 	}
 
 	for i, job := range config.Jobs {
+		jobLogName := job.Name
+		if jobLogName == "" {
+			jobLogName = fmt.Sprint(i)
+		}
 		if job.Endpoint == "" {
-			return errors.New(ErrorJobEndpointNotSet(i))
+			return errors.New(ErrorJobEndpointNotSet(jobLogName))
+		}
+
+		if job.Body == "" && job.Status != 404 {
+			return errors.New(ErrorEmptyBody(jobLogName))
 		}
 	}
 
 	return nil
+}
+
+func checkStatus(job Job, resp *http.Response) bool {
+	var expectedStatus int
+	if job.Status == 0 {
+		expectedStatus = 200
+	} else {
+		expectedStatus = job.Status
+	}
+	return resp.StatusCode == expectedStatus
+}
+
+func checkBody(job Job, body []byte) bool {
+	if string(body) == "" || job.Status == 404 {
+		return true
+	}
+	return job.Body == string(body)
 }
 
 func main() {
@@ -134,36 +183,38 @@ func main() {
 	baseWithPort := config.Base_url + ":" + fmt.Sprintf("%v", config.Port)
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(config.Schedule).Milliseconds().Do(func() {
-		failures := []Failure{}
-		successes := []Success{}
+		failures := Failures{}
+		successes := Successes{}
+
 		for _, job := range config.Jobs {
 			log.Println(string(colorWhite), fmt.Sprintf("Running: %s", job.Name))
 
-			resp, err := http.Get(baseWithPort + "/" + job.Endpoint)
+			resp, err := http.Get(baseWithPort + job.Endpoint)
 			check(err)
 
 			body, err := ioutil.ReadAll(resp.Body)
 			check(err)
 
-			if resp.StatusCode != 200 {
-				failures = append(failures, Failure{
-					Job:        job,
-					StatusCode: resp.StatusCode,
-					Body:       string(body),
-				})
+			// Checks the status, then body, in order
+			if !checkStatus(job, resp) {
+				failures.addFailure(job, resp.StatusCode, body, fmt.Sprintf("%s: Expected %d received %d", job.Name, job.Status, resp.StatusCode))
+			} else if !checkBody(job, body) {
+				failures.addFailure(job, resp.StatusCode, body, fmt.Sprintf("%s: Response body did not match", job.Name))
+				if config.Verbose {
+					log.Println("Received body was:")
+					fmt.Printf(string(body))
+				}
 			} else {
-				successes = append(successes, Success{
-					Job: job,
-				})
+				successes.addSuccess(job)
 			}
 		}
 
 		log.Print("\n\n--RESULTS--")
-		log.Println(fmt.Sprintf("%d/%d Succeeeded", len(successes), len(config.Jobs)))
-		log.Println(fmt.Sprintf("%d/%d Failed", len(failures), len(config.Jobs)))
+		log.Println(fmt.Sprintf("%d/%d Succeeeded", len(successes.successes), len(config.Jobs)))
+		log.Println(fmt.Sprintf("%d/%d Failed", len(failures.failures), len(config.Jobs)))
 
-		for _, failure := range failures {
-			log.Print(fmt.Sprintf("\tEndpoint failed /%s, expected 200 got %d", failure.Job.Endpoint, failure.StatusCode))
+		for _, failure := range failures.failures {
+			log.Print(failure.Message)
 		}
 	})
 
